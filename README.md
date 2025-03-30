@@ -39,7 +39,6 @@ OPENAI_MODEL=o3-mini
 LOG_LEVEL=INFO
 
 # For server mode only
-API_BASE_URL=https://api.example.com/v1
 WEBHOOK_SECRET=your_webhook_secret
 ```
 
@@ -47,24 +46,15 @@ WEBHOOK_SECRET=your_webhook_secret
 
 ### Server Mode
 
-Run the agent in server mode to listen for notifications from Agent4rena:
+#### ⚠️ Warning ⚠️ - This mode does not work yet. It will be available once Agent4rena is released.
 
-```bash
-solidity-audit server --host 0.0.0.0 --port 8000
-```
-
-The server exposes the following endpoints:
-- `POST /webhook`: Receives notifications from Agent4rena when a new challenge begins
-- `GET /health`: Health check endpoint
-
-When Agent4rena sends a notification about a new challenge, the agent will:
-1. Fetch the Solidity contracts from the Agent4rena API
-2. Perform a security audit on the contracts
-3. Send the audit results back to Agent4rena
+Join the [telegram group](https://t.me/agent4rena) to stay updated with the latest news.
 
 ### Local Mode
 
-Run the agent in local mode to audit a GitHub repository directly:
+Run the agent in local mode to audit a GitHub repository directly.
+
+You can use the following example repository. The results will be saved in the `audit.txt` file.
 
 ```bash
 audit-agent local --repo https://github.com/andreitoma8/learn-solidity-hacks.git --output audit.txt

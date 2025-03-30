@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     api_base_url: str = Field(..., env="API_BASE_URL")
     webhook_secret: str = Field(None, env="WEBHOOK_SECRET")
     log_level: str = Field("INFO", env="LOG_LEVEL")
+    log_file: str = Field("agent.log", env="LOG_FILE")
     
     class Config:
         env_file = ".env"

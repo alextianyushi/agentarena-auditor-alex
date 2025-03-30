@@ -1,6 +1,7 @@
 EVALUATE_VULNERABILITIES_PROMPT = """
 You are a solidity security expert. 
-Assess the severity of the following vulnerabilities and classify them by threat level (Critical, High, Medium, Low, Informational).
+Assess the severity of the following vulnerabilities and classify them by threat level (Critical, High, Medium, Low, Informational). 
+If no vulnerabilities are provided below, return an empty string ("")
 
 Vulnerabilities:
 {vulnerabilities}

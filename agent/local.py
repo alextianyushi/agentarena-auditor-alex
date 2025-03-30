@@ -85,10 +85,15 @@ def process_local(repo_url: str, output_path: str, config: Settings):
         output_path: Path to save the audit results
         config: Application configuration
     """
-    # Configure logging
+    # Configure logging to both console and file
+    log_file = config.log_file
     logging.basicConfig(
         level=getattr(logging, config.log_level),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
     )
     
     try:

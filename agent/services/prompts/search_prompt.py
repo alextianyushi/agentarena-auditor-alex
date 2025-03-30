@@ -5,7 +5,8 @@ Audit the provided Solidity contracts for security vulnerabilities.
 Contracts:
 {contracts}
 
-Ignore the following known issues:
+The following vulnerabilities are known to exist in the codebase. Please do not report them as vulnerabilities. If no new vulnerabilities are found, return an empty string ("")
+Known vulnerabilities: 
 {known_issues}
 
 For each finding, provide:
@@ -36,6 +37,11 @@ Example output:
 • Potential impact: The attacker might trigger the winning condition without following the intended “1 Ether per deposit” mechanism or spoil the game for honest participants.  
 • Recommended fix: Do not rely solely on the raw balance to track game progress. Use an internal counter (or mapping) to track the number of deposits instead of inferring it from the contract’s balance.
 ```
+
+Summary:
+- 1. Search for vulnerabilities in the codebase
+- 2. Remove the known vulnerabilities from the list of findings
+- 3. Return the unique findings
       
 Output:
 

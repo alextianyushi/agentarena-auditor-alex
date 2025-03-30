@@ -26,13 +26,17 @@ class SolidityAuditor:
 
     def search_vulnerabilities(self, prompt: str) -> str:
         try:
+            logger.info(f"Sending prompt to OpenAI for vulnerability search")
             logger.debug(f"Searching vulnerabilities with prompt: {prompt}")
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": prompt}
                 ]
             )
+            
+            logger.debug(f"The following vulnerabilities were found: {response.choices[0].message.content}")
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"Error searching vulnerabilities: {e}")
@@ -40,13 +44,17 @@ class SolidityAuditor:
 
     def evaluate_vulnerabilities(self, prompt: str) -> str:
         try:
+            logger.info(f"Sending prompt to OpenAI for vulnerability evaluation")
             logger.debug(f"Evaluating vulnerabilities with prompt: {prompt}")
+    
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": prompt}
                 ]
             )
+
+            logger.debug(f"Evaluation response: {response.choices[0].message.content}")
             return response.choices[0].message.content
         except Exception as e:
             logger.error(f"Error evaluating vulnerabilities: {e}")
@@ -68,19 +76,23 @@ class SolidityAuditor:
             try:
                 logger.info(f"Audit iteration {i}")
                 # Construct the search prompt with known issues
-                contracts = "\n".join([f"Contract: {file.path}\n```solidity\n{file.content}\n```" for file in solidity_files])
-                search_prompt = SEARCH_VULNERABILITIES_PROMPT.format(contracts=contracts, known_issues=known_issues)
+                # contracts = "\n".join([f"Contract: {file.path}\n```solidity\n{file.content}\n```" for file in solidity_files])
+                contracts = "\n".join([f"Contract: {file.path}\n```solidity\n{file.content}\n```" for file in solidity_files[:3]])
+                
+                logger.info(f"Known issues: {known_issues}")
+                search_prompt = SEARCH_VULNERABILITIES_PROMPT.format(contracts=contracts, known_issues=known_issues if known_issues else "None")
                 
                 # Step 1: Searcher
                 findings = self.search_vulnerabilities(search_prompt)
+                logger.info(f"New findings: {findings}")
                 
                 # Step 2: Evaluator
-                evaluate_prompt = EVALUATE_VULNERABILITIES_PROMPT.format(vulnerabilities=findings, contracts=contracts)
+                evaluate_prompt = EVALUATE_VULNERABILITIES_PROMPT.format(vulnerabilities=findings if findings else "None", contracts=contracts)
                 issues = self.evaluate_vulnerabilities(evaluate_prompt)
-                
+          
                 # Update known issues
                 known_issues += issues
-                logger.info(f"Iteration completed. Found issues: {issues}")
+                logger.info(f"Iteration completed")
 
                 i += 1
             except Exception as e:
