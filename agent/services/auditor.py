@@ -76,8 +76,7 @@ class SolidityAuditor:
             try:
                 logger.info(f"Audit iteration {i}")
                 # Construct the search prompt with known issues
-                # contracts = "\n".join([f"Contract: {file.path}\n```solidity\n{file.content}\n```" for file in solidity_files])
-                contracts = "\n".join([f"Contract: {file.path}\n```solidity\n{file.content}\n```" for file in solidity_files[:3]])
+                contracts = "\n".join([f"Contract: {file.path}\n```solidity\n{file.content}\n```" for file in solidity_files])
                 
                 logger.info(f"Known issues: {known_issues}")
                 search_prompt = SEARCH_VULNERABILITIES_PROMPT.format(contracts=contracts, known_issues=known_issues if known_issues else "None")
