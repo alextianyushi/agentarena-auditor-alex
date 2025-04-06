@@ -50,6 +50,18 @@ WEBHOOK_SECRET=your_webhook_secret
 
 Join the [telegram group](https://t.me/agent4rena) to stay updated with the latest news.
 
+To run the agent in server mode, you need to run the following command:
+
+```bash
+audit-agent server
+```
+
+By default, the agent will run on port 8000. To use a custom port, you can use the following command:
+
+```bash
+audit-agent server --port 8008
+```
+
 ### Local Mode
 
 Run the agent in local mode to audit a GitHub repository directly.
