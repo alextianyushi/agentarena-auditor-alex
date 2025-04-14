@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     openai_api_key: str = Field(..., env="OPENAI_API_KEY")
     openai_model: str = Field("o3-mini", env="OPENAI_MODEL")
-    api_base_url: str = Field(..., env="API_BASE_URL")
+    agent4rena_api_key: str = Field(..., env="AGENT4RENA_API_KEY")
     webhook_secret: str = Field(None, env="WEBHOOK_SECRET")
     log_level: str = Field("INFO", env="LOG_LEVEL")
     log_file: str = Field("agent.log", env="LOG_FILE")

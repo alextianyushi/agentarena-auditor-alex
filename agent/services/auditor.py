@@ -1,14 +1,24 @@
 """
 Core service for auditing Solidity contracts using OpenAI.
 """
+import json
 import logging
-from typing import List, Dict, Any
+from typing import List
+from pydantic import BaseModel, Field
 from openai import OpenAI
-from agent.models.solidity_file import SolidityFile
-from agent.services.prompts.search_prompt import SEARCH_VULNERABILITIES_PROMPT
-from agent.services.prompts.evaluate_prompt import EVALUATE_VULNERABILITIES_PROMPT
 
 logger = logging.getLogger(__name__)
+
+class VulnerabilityFinding(BaseModel):
+    """Model representing a single vulnerability finding."""
+    title: str = Field(..., description="Title of the vulnerability")
+    description: str = Field(..., description="Detailed description of the vulnerability")
+    severity: str = Field(..., description="Severity level: Critical, High, Medium, Low, or Informational")
+    file_path: str = Field(..., description="Path to the file containing the vulnerability")
+
+class AuditResponse(BaseModel):
+    """Model representing the complete audit response."""
+    findings: List[VulnerabilityFinding] = Field(default_factory=list, description="List of vulnerability findings")
 
 class SolidityAuditor:
     """Service for auditing Solidity contracts using OpenAI."""
@@ -23,78 +33,110 @@ class SolidityAuditor:
         """
         self.model = model
         self.client = OpenAI(api_key=api_key)
+        
+    # Define the audit prompt as a class constant
+    AUDIT_PROMPT = """
+    You are an expert Solidity smart contract auditor. Analyze the provided smart contracts and identify security vulnerabilities, bugs, and optimization opportunities.
 
-    def search_vulnerabilities(self, prompt: str) -> str:
-        try:
-            logger.info(f"Sending prompt to OpenAI for vulnerability search")
-            logger.debug(f"Searching vulnerabilities with prompt: {prompt}")
-
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": prompt}
-                ]
-            )
-            
-            logger.debug(f"The following vulnerabilities were found: {response.choices[0].message.content}")
-            return response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"Error searching vulnerabilities: {e}")
-            return ""
-
-    def evaluate_vulnerabilities(self, prompt: str) -> str:
-        try:
-            logger.info(f"Sending prompt to OpenAI for vulnerability evaluation")
-            logger.debug(f"Evaluating vulnerabilities with prompt: {prompt}")
+    ## Instructions
+    1. Analyze each contract thoroughly
+    2. Identify all possible security vulnerabilities
+    3. Provide your findings in JSON format as specified below
     
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": prompt}
-                ]
-            )
+    ## Vulnerability Categories To Consider
+    - Reentrancy vulnerabilities
+    - Access control issues
+    - Integer overflow/underflow
+    - Denial of service vectors
+    - Logic errors and edge cases
+    - Gas optimization issues
+    - Centralization risks
+    - Front-running opportunities
+    - Timestamp manipulation
+    - Unchecked external calls
+    - Improper error handling
+    - Incorrect inheritance
+    - Missing validation
+    - Flash loan attack vectors
+    - Business logic flaws
+    - Insufficient testing coverage
 
-            logger.debug(f"Evaluation response: {response.choices[0].message.content}")
-            return response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"Error evaluating vulnerabilities: {e}")
-            return ""
+    ## Severity Levels
+    - Critical: Vulnerabilities that can lead to direct loss of funds or complete contract takeover
+    - High: Significant vulnerabilities that could potentially lead to loss of funds
+    - Medium: Vulnerabilities that pose risks but have limited impact
+    - Low: Minor issues that should be addressed but don't pose immediate risks
+    - Informational: Suggestions for best practices, optimizations, or code quality improvements
 
-    def audit_files(self, solidity_files: List[SolidityFile]) -> str:
+    ## Response Format
+    Return your findings in the following JSON format:
+    ```json
+    {{
+      "findings": [
+        {{
+          "title": "Clear, concise title of the vulnerability",
+          "description": "Detailed explanation including how the vulnerability could be exploited and recommendation to fix",
+          "severity": "Critical|High|Medium|Low|Informational",
+          "file_path": "path/to/file.sol",
+        }}
+      ]
+    }}
+    ```
+
+    ## Smart Contracts to Audit
+    ```solidity
+    {contracts}
+    ```
+    """
+
+    def audit_files(self, contracts: str) -> AuditResponse:
         """
-        Audit a list of Solidity contracts and return the audit results.
+        Audit a list of Solidity contracts and return structured findings.
         
         Args:
             solidity_files: List of SolidityFile objects to audit
             
         Returns:
-            Audit results as a string
+            Dictionary containing the audit findings in a structured format
         """
-        known_issues = ""
-        i = 0
-        while i < 10:
+        try:
+            # Prepare the audit prompt
+            audit_prompt = self.AUDIT_PROMPT.format(contracts=contracts)
+            
+            # Send single request to OpenAI
+            logger.info("Sending audit request to OpenAI")
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are an expert Solidity smart contract auditor."},
+                    {"role": "user", "content": audit_prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            
+            # Extract and parse the JSON response
+            result_text = response.choices[0].message.content
+            logger.debug(f"Received audit response from OpenAI")
+            
             try:
-                logger.info(f"Audit iteration {i}")
-                # Construct the search prompt with known issues
-                contracts = "\n".join([f"Contract: {file.path}\n```solidity\n{file.content}\n```" for file in solidity_files])
+                # Parse the JSON response
+                audit_result = json.loads(result_text)
                 
-                logger.info(f"Known issues: {known_issues}")
-                search_prompt = SEARCH_VULNERABILITIES_PROMPT.format(contracts=contracts, known_issues=known_issues if known_issues else "None")
-                
-                # Step 1: Searcher
-                findings = self.search_vulnerabilities(search_prompt)
-                logger.info(f"New findings: {findings}")
-                
-                # Step 2: Evaluator
-                evaluate_prompt = EVALUATE_VULNERABILITIES_PROMPT.format(vulnerabilities=findings if findings else "None", contracts=contracts)
-                issues = self.evaluate_vulnerabilities(evaluate_prompt)
-          
-                # Update known issues
-                known_issues += issues
-                logger.info(f"Iteration completed")
+                logger.info(f"Audit result: {audit_result}")
 
-                i += 1
-            except Exception as e:
-                logger.error(f"Error during audit iteration {i}: {e}")
-
-        return known_issues
+                # Validate using Pydantic model
+                validated_result = AuditResponse(**audit_result)
+                
+                logger.info(f"Audit completed successfully with {len(validated_result.findings)} findings")
+                return validated_result
+            except json.JSONDecodeError as json_err:
+                logger.error(f"Failed to parse JSON response: {json_err}")
+                logger.debug(f"Raw response: {result_text}")
+                return AuditResponse(findings=[])
+            except Exception as validation_err:
+                logger.error(f"Validation error with audit response: {validation_err}")
+                return AuditResponse(findings=[])
+                
+        except Exception as e:
+            logger.error(f"Error during audit: {str(e)}", exc_info=True)
+            return AuditResponse(findings=[])
