@@ -14,7 +14,7 @@ class VulnerabilityFinding(BaseModel):
     title: str = Field(..., description="Title of the vulnerability")
     description: str = Field(..., description="Detailed description of the vulnerability")
     severity: str = Field(..., description="Severity level: Critical, High, Medium, Low, or Informational")
-    file_path: str = Field(..., description="Path to the file containing the vulnerability")
+    #file_path: str = Field(..., description="Path to the file containing the vulnerability")
 
 class AuditResponse(BaseModel):
     """Model representing the complete audit response."""
@@ -62,11 +62,10 @@ class SolidityAuditor:
     - Insufficient testing coverage
 
     ## Severity Levels
-    - Critical: Vulnerabilities that can lead to direct loss of funds or complete contract takeover
-    - High: Significant vulnerabilities that could potentially lead to loss of funds
+    - High: Significant vulnerabilities that could lead to loss of funds
     - Medium: Vulnerabilities that pose risks but have limited impact
     - Low: Minor issues that should be addressed but don't pose immediate risks
-    - Informational: Suggestions for best practices, optimizations, or code quality improvements
+    - Info: Suggestions for best practices, optimizations, or code quality improvements
 
     ## Response Format
     Return your findings in the following JSON format:
@@ -76,8 +75,7 @@ class SolidityAuditor:
         {{
           "title": "Clear, concise title of the vulnerability",
           "description": "Detailed explanation including how the vulnerability could be exploited and recommendation to fix",
-          "severity": "Critical|High|Medium|Low|Informational",
-          "file_path": "path/to/file.sol",
+          "severity": "High|Medium|Low|Info"
         }}
       ]
     }}

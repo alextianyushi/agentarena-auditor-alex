@@ -1,6 +1,7 @@
 """
 Server implementation for the AI agent.
 """
+import json
 import logging
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Header
@@ -73,14 +74,39 @@ async def send_audit_results(callback_url: str, task_id: str, audit: AuditRespon
         audit: Audit results
     """
     try:
-        async with httpx.AsyncClient() as client:
-            # Match the API's expected format
-            payload = {"project_id": task_id, "reported_by_agent": "agent", "findings": audit.model_dump()}
-            response = await client.post(callback_url, json=payload)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # Convert Pydantic models to dict first
+            findings_dict = [finding.model_dump() for finding in audit.findings]
+            payload = {"task_id": task_id, "agent_id": "agent", "findings": findings_dict}
+            
+            # Log detailed payload information for debugging
+            logger.info(f"Sending audit results to {callback_url} for task {task_id}")
+            logger.debug(f"Request payload: {json.dumps(payload, indent=2)}")
+            
+            # Add more debugging info and increase timeout
+            response = await client.post(
+                callback_url, 
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            # Log response details
+            logger.info(f"Response status: {response.status_code}")
+            logger.debug(f"Response headers: {response.headers}")
+            logger.debug(f"Response content: {response.text}")
+            
             response.raise_for_status()
             logger.info(f"Successfully sent audit results for task {task_id}")
+            
+    except httpx.RequestError as e:
+        # Network-related errors
+        logger.error(f"Network error when sending audit results: {str(e)}", exc_info=True)
+    except httpx.HTTPStatusError as e:
+        # Server returned error status
+        logger.error(f"HTTP error {e.response.status_code} when sending audit results: {e.response.text}", exc_info=True)
     except Exception as e:
-        logger.error(f"Error sending audit results: {str(e)}")
+        # Any other unexpected errors
+        logger.error(f"Unexpected error sending audit results: {str(e)}", exc_info=True)
 
 async def process_notification(notification: Notification, config: Settings):
     """
