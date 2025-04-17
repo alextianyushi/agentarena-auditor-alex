@@ -14,7 +14,7 @@ class VulnerabilityFinding(BaseModel):
     title: str = Field(..., description="Title of the vulnerability")
     description: str = Field(..., description="Detailed description of the vulnerability")
     severity: str = Field(..., description="Severity level: Critical, High, Medium, Low, or Informational")
-    #file_path: str = Field(..., description="Path to the file containing the vulnerability")
+    file_path: str = Field(..., description="Path to the file containing the vulnerability")
 
 class AuditResponse(BaseModel):
     """Model representing the complete audit response."""
@@ -75,7 +75,8 @@ class SolidityAuditor:
         {{
           "title": "Clear, concise title of the vulnerability",
           "description": "Detailed explanation including how the vulnerability could be exploited and recommendation to fix",
-          "severity": "High|Medium|Low|Info"
+          "severity": "High|Medium|Low|Info",
+          "file_path": "path/to/the/file/containing/the/vulnerability"
         }}
       ]
     }}

@@ -22,5 +22,5 @@ class Settings(BaseSettings):
 
 def load_config() -> Settings:
     """Load and return application configuration."""
-    load_dotenv()
+    load_dotenv(override=True)
     return Settings() 

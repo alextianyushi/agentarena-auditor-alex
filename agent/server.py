@@ -74,10 +74,10 @@ async def send_audit_results(callback_url: str, task_id: str, audit: AuditRespon
         audit: Audit results
     """
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=600.0) as client:
             # Convert Pydantic models to dict first
             findings_dict = [finding.model_dump() for finding in audit.findings]
-            payload = {"task_id": task_id, "agent_id": "agent", "findings": findings_dict}
+            payload = {"task_id": task_id, "findings": findings_dict}
             
             # Log detailed payload information for debugging
             logger.info(f"Sending audit results to {callback_url} for task {task_id}")
@@ -87,9 +87,11 @@ async def send_audit_results(callback_url: str, task_id: str, audit: AuditRespon
             response = await client.post(
                 callback_url, 
                 json=payload,
-                headers={"Content-Type": "application/json"}
+                headers={
+                    "Content-Type": "application/json",
+                    "X-API-Key": app.state.config.agent4rena_api_key
+                }
             )
-            
             # Log response details
             logger.info(f"Response status: {response.status_code}")
             logger.debug(f"Response headers: {response.headers}")
