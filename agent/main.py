@@ -15,6 +15,7 @@ def main():
     
     # Local mode arguments
     parser.add_argument("--repo", help="GitHub repository URL (required for local mode)")
+    parser.add_argument("--commit", help="Specific commit hash to audit (optional for local mode)")
     parser.add_argument("--output", help="Output file path (for local mode)", default="security_audit_results.txt")
     
     # Server mode arguments
@@ -33,9 +34,9 @@ def main():
             print("Error: --repo argument is required for local mode")
             parser.print_help()
             sys.exit(1)
-        process_local(repo_url=args.repo, output_path=args.output, config=config)
+        process_local(repo_url=args.repo, output_path=args.output, config=config, commit_hash=args.commit)
     else:
         parser.print_help()
 
 if __name__ == "__main__":
-    main() 
+    main()

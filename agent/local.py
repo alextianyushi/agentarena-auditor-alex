@@ -13,19 +13,25 @@ from agent.config import Settings
 
 logger = logging.getLogger(__name__)
 
-def clone_repository(repo_url: str) -> str:
+def clone_repository(repo_url: str, commit_hash: str | None = None) -> str:
     """
     Clone a GitHub repository to a temporary directory.
     
     Args:
         repo_url: URL of the GitHub repository
+        commit_hash: Optional specific commit hash to checkout
         
     Returns:
         Path to the cloned repository
     """
     logger.info(f"Cloning repository: {repo_url}")
     temp_dir = tempfile.mkdtemp()
-    git.Repo.clone_from(repo_url, temp_dir)
+    repo = git.Repo.clone_from(repo_url, temp_dir)
+    
+    if commit_hash:
+        logger.info(f"Checking out commit: {commit_hash}")
+        repo.git.checkout(commit_hash)
+        
     return temp_dir
 
 def find_solidity_contracts(repo_path: str) -> List[SolidityFile]:
@@ -76,7 +82,7 @@ def save_audit_results(output_path: str, audit: str):
         logger.error(f"Error saving audit results: {str(e)}")
         raise
 
-def process_local(repo_url: str, output_path: str, config: Settings):
+def process_local(repo_url: str, output_path: str, config: Settings, commit_hash: str | None = None):
     """
     Process a repository in local mode.
     
@@ -84,6 +90,7 @@ def process_local(repo_url: str, output_path: str, config: Settings):
         repo_url: URL of the GitHub repository
         output_path: Path to save the audit results
         config: Application configuration
+        commit_hash: Optional specific commit hash to checkout
     """
     # Configure logging to both console and file
     log_file = config.log_file
@@ -98,7 +105,7 @@ def process_local(repo_url: str, output_path: str, config: Settings):
     
     try:
         # Clone the repository
-        repo_path = clone_repository(repo_url)
+        repo_path = clone_repository(repo_url, commit_hash)
         
         # Find Solidity contracts
         solidity_contracts = find_solidity_contracts(repo_path)
@@ -120,4 +127,4 @@ def process_local(repo_url: str, output_path: str, config: Settings):
         
     except Exception as e:
         logger.error(f"Error in local processing: {str(e)}")
-        raise 
+        raise
