@@ -7,7 +7,7 @@ import httpx
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel
 
-from agent.services.auditor import AuditResponse, SolidityAuditor
+from agent.services.auditor import Audit, SolidityAuditor
 from agent.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -18,11 +18,6 @@ class Notification(BaseModel):
     task_id: str
     get_contracts_url: str
     post_findings_url: str
-
-class AuditResult(BaseModel):
-    """Model for audit results."""
-    task_id: str
-    audit: str
 
 class TaskContent(BaseModel):
     """Model for task smart contract content."""
@@ -64,7 +59,7 @@ async def fetch_solidity_files(contracts_url: str, config: Settings) -> str:
     
     return None
 
-async def send_audit_results(callback_url: str, task_id: str, audit: AuditResponse):
+async def send_audit_results(callback_url: str, task_id: str, audit: Audit):
     """
     Send audit results back to the API.
     

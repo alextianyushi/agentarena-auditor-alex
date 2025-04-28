@@ -1,6 +1,7 @@
 """
 Local execution mode for the AI agent.
 """
+import json
 import os
 import logging
 import tempfile
@@ -112,9 +113,10 @@ def process_local(repo_url: str, output_path: str, config: Settings):
         # Audit contracts
         auditor = SolidityAuditor(config.openai_api_key, config.openai_model)
         audit = auditor.audit_files(solidity_contracts)
-        
+        audit_dict = [finding.model_dump() for finding in audit.findings]
+
         # Save results
-        save_audit_results(output_path, audit)
+        save_audit_results(output_path, json.dumps(audit_dict, indent=2))
         
         logger.info("Security audit completed successfully")
         
