@@ -1,31 +1,28 @@
 """
 Server implementation for the AI agent.
 """
+import json
 import logging
-from typing import Dict, Any, List, Union, Optional
 import httpx
-from fastapi import FastAPI, Request, Depends, HTTPException, BackgroundTasks, Header
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, validator
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Header
+from pydantic import BaseModel
 
-from agent.services.auditor import SolidityAuditor
-from agent.models.solidity_file import SolidityFile
+from agent.services.auditor import Audit, SolidityAuditor
 from agent.config import Settings
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="Solidity Audit Agent")
 
-class NotificationPayload(BaseModel):
+class Notification(BaseModel):
     """Payload received from Agent4rena webhook."""
     task_id: str
-    files: List[str]
-    post_findings_url: str
     get_contracts_url: str
+    post_findings_url: str
 
-class AuditResult(BaseModel):
-    """Model for audit results."""
+class TaskContent(BaseModel):
+    """Model for task smart contract content."""
     task_id: str
-    audit: str
+    files_content: str
 
 def verify_webhook_secret(x_webhook_secret: str = Header(None), config: Settings = Depends(lambda: app.state.config)):
     """Verify the webhook secret if configured."""
@@ -33,7 +30,7 @@ def verify_webhook_secret(x_webhook_secret: str = Header(None), config: Settings
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     return True
 
-async def fetch_solidity_files(contracts_url: str, task_id: str, file_paths: List[str]) -> List[SolidityFile]:
+async def fetch_solidity_files(contracts_url: str, config: Settings) -> str:
     """
     Fetch Solidity files from the API.
     
@@ -45,32 +42,24 @@ async def fetch_solidity_files(contracts_url: str, task_id: str, file_paths: Lis
     Returns:
         List of SolidityFile objects
     """
-    solidity_files = []
     try:
         async with httpx.AsyncClient() as client:
             # Fetch all contracts at once from the contracts_url
-            response = await client.get(contracts_url)
+            response = await client.get(
+                contracts_url,
+                headers={"X-API-Key": config.agent4rena_api_key}
+            )
             response.raise_for_status()
             
             # Parse the response
-            contracts_data = response.json()
-            
-            # Process each contract
-            for contract in contracts_data:
-                if contract["path"] in file_paths:
-                    solidity_files.append(
-                        SolidityFile(
-                            path=contract["path"],
-                            content=contract["content"],
-                            repo_url=contract.get("repo_url")
-                        )
-                    )
+            return response.json()
+        
     except Exception as e:
         logger.error(f"Error fetching contracts: {str(e)}")
     
-    return solidity_files
+    return None
 
-async def send_audit_results(callback_url: str, task_id: str, audit: str):
+async def send_audit_results(callback_url: str, task_id: str, audit: Audit):
     """
     Send audit results back to the API.
     
@@ -80,16 +69,43 @@ async def send_audit_results(callback_url: str, task_id: str, audit: str):
         audit: Audit results
     """
     try:
-        async with httpx.AsyncClient() as client:
-            # Match the API's expected format
-            payload = {"findings": audit}
-            response = await client.post(callback_url, json=payload)
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            # Convert Pydantic models to dict first
+            findings_dict = [finding.model_dump() for finding in audit.findings]
+            payload = {"task_id": task_id, "findings": findings_dict}
+            
+            # Log detailed payload information for debugging
+            logger.info(f"Sending audit results to {callback_url} for task {task_id}")
+            logger.debug(f"Request payload: {json.dumps(payload, indent=2)}")
+            
+            # Add more debugging info and increase timeout
+            response = await client.post(
+                callback_url, 
+                json=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-API-Key": app.state.config.agent4rena_api_key
+                }
+            )
+            # Log response details
+            logger.info(f"Response status: {response.status_code}")
+            logger.debug(f"Response headers: {response.headers}")
+            logger.debug(f"Response content: {response.text}")
+            
             response.raise_for_status()
             logger.info(f"Successfully sent audit results for task {task_id}")
+            
+    except httpx.RequestError as e:
+        # Network-related errors
+        logger.error(f"Network error when sending audit results: {str(e)}", exc_info=True)
+    except httpx.HTTPStatusError as e:
+        # Server returned error status
+        logger.error(f"HTTP error {e.response.status_code} when sending audit results: {e.response.text}", exc_info=True)
     except Exception as e:
-        logger.error(f"Error sending audit results: {str(e)}")
+        # Any other unexpected errors
+        logger.error(f"Unexpected error sending audit results: {str(e)}", exc_info=True)
 
-async def process_notification(payload: NotificationPayload, config: Settings):
+async def process_notification(notification: Notification, config: Settings):
     """
     Process a notification by fetching files, auditing them, and sending results.
     
@@ -100,28 +116,27 @@ async def process_notification(payload: NotificationPayload, config: Settings):
     try:
         
         # Fetch Solidity files
-        solidity_files = await fetch_solidity_files(
-            payload.get_contracts_url,
-            payload.task_id,
-            payload.files
+        solidity_content = await fetch_solidity_files(
+            notification.get_contracts_url,
+            config
         )
         
-        if not solidity_files:
-            logger.warning(f"No Solidity files fetched for task {payload.task_id}")
+        if not solidity_content:
+            logger.warning(f"No Solidity files fetched for task {notification.task_id}")
             return
         
         # Audit files
         auditor = SolidityAuditor(config.openai_api_key, config.openai_model)
-        audit = auditor.audit_files(solidity_files)
+        audit = auditor.audit_files(solidity_content)
         
         # Send results back
-        await send_audit_results(payload.post_findings_url, payload.task_id, audit)
+        await send_audit_results(notification.post_findings_url, notification.task_id, audit)
         
     except Exception as e:
         logger.error(f"Error processing notification: {str(e)}")
 
-@app.post("/webhook", dependencies=[Depends(verify_webhook_secret)])
-async def webhook(payload: NotificationPayload, background_tasks: BackgroundTasks):
+@app.post("/webhook")# , dependencies=[Depends(verify_webhook_secret)])
+async def webhook(notification: Notification, background_tasks: BackgroundTasks):
     """
     Webhook endpoint for receiving notifications.
     
@@ -132,16 +147,16 @@ async def webhook(payload: NotificationPayload, background_tasks: BackgroundTask
     Returns:
         Acknowledgement response
     """
-    logger.info(f"Received notification for task {payload.task_id} with {len(payload.files)} files")
+    logger.info(f"Received notification for task {notification.task_id}")
     
     # Process the notification in the background
     background_tasks.add_task(
         process_notification, 
-        payload=payload, 
+        notification=notification, 
         config=app.state.config
     )
     
-    return {"status": "processing", "task_id": payload.task_id}
+    return {"status": "processing", "task_id": notification.task_id}
 
 @app.get("/health")
 async def health_check():
