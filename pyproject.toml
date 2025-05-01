@@ -18,6 +18,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "openai>=1.0.0",
     "gitpython>=3.1.31",
+    "questionary>=2.0.1",
 ]
 
 [project.scripts]
@@ -33,4 +34,4 @@ select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = "test_*.py" 
+python_files = "test_*.py"

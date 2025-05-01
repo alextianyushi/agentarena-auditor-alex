@@ -7,6 +7,7 @@ import tempfile
 from typing import List
 import git
 import glob
+import questionary
 from agent.services.auditor import SolidityAuditor
 from agent.models.solidity_file import SolidityFile
 from agent.config import Settings
@@ -30,7 +31,7 @@ def clone_repository(repo_url: str) -> str:
 
 def select_files_interactively(all_files: List[str]) -> List[str]:
     """
-    Display all .sol files and let the user select which ones to audit.
+    Display all .sol files and let the user select which ones to audit using questionary.
     
     Args:
         all_files: List of all Solidity file paths found
@@ -41,38 +42,31 @@ def select_files_interactively(all_files: List[str]) -> List[str]:
     if not all_files:
         logger.warning("No Solidity files found in repository")
         return []
-        
-    print("\nFound the following Solidity files:")
-    for idx, file_path in enumerate(all_files, 1):
-        print(f"{idx}. {file_path}")
-        
-    while True:
-        try:
-            selection = input("\nEnter the numbers of files to audit (comma-separated, e.g. '1,3,4'): ")
-            if not selection.strip():
-                logger.warning("No files selected, exiting...")
-                return []
-                
-            # Parse and validate selections
-            selected_indices = [int(idx.strip()) for idx in selection.split(",")]
-            selected_files = []
+    
+    logger.info(f"Found {len(all_files)} Solidity files. Displaying selection interface.")
+    try:
+        print("\nPlease select the files to audit:")
+        choices = []
+        for file_path in all_files:
+            # Show a cleaned path for better UX
+            choices.append({"name": file_path, "value": file_path})
             
-            for idx in selected_indices:
-                if 1 <= idx <= len(all_files):
-                    selected_files.append(all_files[idx - 1])
-                else:
-                    print(f"Invalid selection {idx}, skipping...")
-            
-            if selected_files:
-                print("\nSelected files:")
-                for file in selected_files:
-                    print(f"- {file}")
-                return selected_files
-            else:
-                print("No valid files selected, please try again")
-                
-        except ValueError:
-            print("Invalid input. Please enter comma-separated numbers")
+        # Use questionary's checkbox component for multi-selection
+        selected_files = questionary.checkbox(
+            "Select Solidity files to audit:",
+            choices=choices,
+        ).ask()
+        
+        if not selected_files:
+            logger.warning("No files selected")
+            return []
+        
+        logger.info(f"Selected {len(selected_files)} files for audit")
+        return selected_files
+    except Exception as e:
+        logger.error(f"Error during file selection: {str(e)}")
+        logger.info("Falling back to processing all files")
+        return all_files
 
 def find_solidity_contracts(repo_path: str, only_selected: bool = False) -> List[SolidityFile]:
     """
