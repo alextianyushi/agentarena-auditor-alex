@@ -31,15 +31,10 @@ cp .env.example .env
 
 ## Configuration
 
-Create a `.env` file with the following variables:
+Create a `.env` file from `.env.example` and set the variables.
 
 ```
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=o3-mini
-LOG_LEVEL=INFO
-
-# For server mode only
-WEBHOOK_SECRET=your_webhook_secret
+cp .env.example .env
 ```
 
 ## Usage
@@ -73,6 +68,12 @@ audit-agent local --repo https://github.com/andreitoma8/learn-solidity-hacks.git
 ```
 
 This mode is useful for testing the agent or auditing repositories outside of the Agent4rena platform.
+
+To see all available options (such as auditing a specific commit or selecting only some of the files to audit), run
+
+```bash
+audit-agent --help
+```
 
 ## License
 
