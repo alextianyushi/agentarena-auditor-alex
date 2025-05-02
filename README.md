@@ -66,10 +66,10 @@ audit-agent server --port 8008
 
 Run the agent in local mode to audit a GitHub repository directly.
 
-You can use the following example repository. The results will be saved in the `audit.txt` file.
+You can use the following example repository to test out the agent. The results will be saved in JSON format in the specified output file, by default that is `audit.json`.
 
 ```bash
-audit-agent local --repo https://github.com/andreitoma8/learn-solidity-hacks.git --output audit.txt
+audit-agent local --repo https://github.com/andreitoma8/learn-solidity-hacks.git --output audit.json
 ```
 
 This mode is useful for testing the agent or auditing repositories outside of the Agent4rena platform.

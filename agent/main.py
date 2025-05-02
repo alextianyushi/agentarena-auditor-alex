@@ -15,6 +15,7 @@ def main():
     
     # Local mode arguments
     parser.add_argument("--repo", help="GitHub repository URL (required for local mode)")
+    parser.add_argument("--commit", help="Specific commit hash to audit (optional for local mode)")
     parser.add_argument("--output", help="Output file path (for local mode)", default="security_audit_results.txt")
     parser.add_argument("--only-selected-files", action="store_true", help="Display and select specific .sol files to audit")
     
@@ -34,7 +35,8 @@ def main():
             print("Error: --repo argument is required for local mode")
             parser.print_help()
             sys.exit(1)
-        process_local(repo_url=args.repo, output_path=args.output, config=config, only_selected=args.only_selected_files)
+
+        process_local(repo_url=args.repo, output_path=args.output, config=config, commit_hash=args.commit, only_selected=args.only_selected_files)
     else:
         parser.print_help()
 
