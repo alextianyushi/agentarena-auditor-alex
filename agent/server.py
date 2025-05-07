@@ -7,7 +7,7 @@ import httpx
 import tempfile
 import os
 import zipfile
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Header
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel
 
 from agent.services.auditor import Audit, SolidityAuditor
@@ -27,12 +27,6 @@ class TaskContent(BaseModel):
     """Model for task smart contract content."""
     task_id: str
     files_content: str
-
-def verify_webhook_secret(x_webhook_secret: str = Header(None), config: Settings = Depends(lambda: app.state.config)):
-    """Verify the webhook secret if configured."""
-    if config.webhook_secret and x_webhook_secret != config.webhook_secret:
-        raise HTTPException(status_code=401, detail="Invalid webhook secret")
-    return True
 
 async def fetch_solidity_files(contracts_url: str, config: Settings) -> str:
     """
@@ -234,7 +228,7 @@ async def process_notification(notification: Notification, config: Settings):
         if not task_details or 'selectedFiles' not in task_details:
             logger.error(f"Failed to get selected files for task {notification.task_id}")
             return
-        
+
         selected_files = task_details['selectedFiles']
         if not selected_files:
             logger.warning(f"No files selected for task {notification.task_id}")
@@ -282,18 +276,29 @@ async def process_notification(notification: Notification, config: Settings):
     except Exception as e:
         logger.error(f"Error processing notification: {str(e)}", exc_info=True)
 
-@app.post("/webhook")# , dependencies=[Depends(verify_webhook_secret)])
-async def webhook(notification: Notification, background_tasks: BackgroundTasks):
+@app.post("/webhook")
+async def webhook(
+    notification: Notification, 
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None)
+):
     """
     Webhook endpoint for receiving notifications.
     
     Args:
-        payload: Notification payload
+        notification: Notification payload
         background_tasks: FastAPI background tasks
+        authorization: Authorization header for webhook validation
         
     Returns:
         Acknowledgement response
     """
+    # Validate authorization token
+    expected_auth = f"token {app.state.config.webhook_auth_token}"
+    if not authorization or authorization != expected_auth:
+        logger.warning(f"Invalid authorization token provided")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
     logger.info(f"Received notification for task {notification.task_id}")
     
     # Process the notification in the background

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(..., env="OPENAI_API_KEY")
     openai_model: str = Field("o3-mini", env="OPENAI_MODEL")
     agent4rena_api_key: str = Field(..., env="AGENT4RENA_API_KEY")
-    webhook_secret: str = Field(None, env="WEBHOOK_SECRET")
+    webhook_auth_token: str = Field(..., env="WEBHOOK_AUTH_TOKEN")
     data_dir: str = Field(..., env="DATA_DIR")
     log_level: str = Field("INFO", env="LOG_LEVEL")
     log_file: str = Field("agent.log", env="LOG_FILE")
