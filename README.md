@@ -31,7 +31,7 @@ cp .env.example .env
 
 ## Configuration
 
-Create a `.env` file with the following variables:
+Create a `.env` file from `.env.example` and set the variables.
 
 ```
 # OpenAI Configuration
@@ -86,6 +86,12 @@ audit-agent local --repo https://github.com/andreitoma8/learn-solidity-hacks.git
 ```
 
 This mode is useful for testing the agent or auditing repositories outside of the Agent4rena platform.
+
+To see all available options (such as auditing a specific commit or selecting only some of the files to audit), run
+
+```bash
+audit-agent --help
+```
 
 ## License
 
