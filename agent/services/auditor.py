@@ -73,7 +73,7 @@ class SolidityAuditor:
                 validated_result = Audit(**audit_result)
                 
                 findings_dict = [finding.model_dump(mode="json") for finding in validated_result.findings]
-                logger.info(f"Audit result: {repr(json.dumps(findings_dict, indent=2))}")
+                logger.info(f"Audit result: {json.dumps(findings_dict, indent=2)}")
 
                 logger.info(f"Audit completed successfully with {len(validated_result.findings)} findings")
                 return validated_result

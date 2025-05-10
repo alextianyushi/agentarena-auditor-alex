@@ -50,6 +50,7 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+audit.json
 
 # Jupyter Notebook
 .ipynb_checkpoints
