@@ -16,7 +16,7 @@ class VulnerabilityFinding(BaseModel):
     title: str = Field(..., description="Title of the vulnerability")
     description: str = Field(..., description="Detailed description of the vulnerability")
     severity: str = Field(..., description="Severity level: Critical, High, Medium, Low, or Informational")
-    file_path: str = Field(..., description="Path to the file containing the vulnerability")
+    file_paths: List[str] = Field(..., description="List of file paths containing the vulnerability")
 
 class Audit(BaseModel):
     """Model representing the complete audit response."""
@@ -69,11 +69,12 @@ class SolidityAuditor:
                 # Parse the JSON response
                 audit_result = json.loads(result_text)
                 
-                logger.info(f"Audit result: {audit_result}")
-
                 # Validate using Pydantic model
                 validated_result = Audit(**audit_result)
                 
+                findings_dict = [finding.model_dump(mode="json") for finding in validated_result.findings]
+                logger.info(f"Audit result: {json.dumps(findings_dict, indent=2)}")
+
                 logger.info(f"Audit completed successfully with {len(validated_result.findings)} findings")
                 return validated_result
             except json.JSONDecodeError as json_err:

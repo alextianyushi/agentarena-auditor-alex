@@ -4,7 +4,10 @@ Server implementation for the AI agent.
 import json
 import logging
 import httpx
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Header
+import tempfile
+import os
+import zipfile
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel
 
 from agent.services.auditor import Audit, SolidityAuditor
@@ -16,19 +19,14 @@ app = FastAPI(title="Solidity Audit Agent")
 class Notification(BaseModel):
     """Payload received from Agent4rena webhook."""
     task_id: str
-    get_contracts_url: str
+    task_repository_url: str  # URL to download repository ZIP
+    task_details_url: str     # URL to get task details with selected files
     post_findings_url: str
 
 class TaskContent(BaseModel):
     """Model for task smart contract content."""
     task_id: str
     files_content: str
-
-def verify_webhook_secret(x_webhook_secret: str = Header(None), config: Settings = Depends(lambda: app.state.config)):
-    """Verify the webhook secret if configured."""
-    if config.webhook_secret and x_webhook_secret != config.webhook_secret:
-        raise HTTPException(status_code=401, detail="Invalid webhook secret")
-    return True
 
 async def fetch_solidity_files(contracts_url: str, config: Settings) -> str:
     """
@@ -105,48 +103,202 @@ async def send_audit_results(callback_url: str, task_id: str, audit: Audit):
         # Any other unexpected errors
         logger.error(f"Unexpected error sending audit results: {str(e)}", exc_info=True)
 
+async def fetch_task_details(details_url: str, config: Settings) -> dict:
+    """
+    Fetch task details including the list of selected files.
+    
+    Args:
+        details_url: URL to fetch task details
+        config: Application configuration
+        
+    Returns:
+        Dictionary containing task details including selectedFiles
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                details_url,
+                headers={"X-API-Key": config.agent4rena_api_key}
+            )
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        logger.error(f"Error fetching task details: {str(e)}", exc_info=True)
+        return None
+
+async def download_repository(repo_url: str, config: Settings) -> str:
+    """
+    Download repository ZIP file and extract to a temporary directory.
+    
+    Args:
+        repo_url: URL to download repository ZIP
+        config: Application configuration
+        
+    Returns:
+        Path to the extracted repository directory
+    """
+    try:
+        # Create a temporary directory
+        temp_dir = tempfile.mkdtemp()
+        zip_path = os.path.join(temp_dir, "repo.zip")
+        
+        # Download the ZIP file
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                repo_url,
+                headers={"X-API-Key": config.agent4rena_api_key}
+            )
+            response.raise_for_status()
+            
+            # Save ZIP file
+            with open(zip_path, "wb") as f:
+                f.write(response.content)
+            
+            # Extract ZIP file
+            extract_dir = os.path.join(temp_dir, "extracted")
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            
+            # Find the actual repository root directory
+            # Most repositories have a single root directory inside the ZIP
+            contents = os.listdir(extract_dir)
+            if len(contents) == 1 and os.path.isdir(os.path.join(extract_dir, contents[0])):
+                # If there's only one item and it's a directory, that's our repo root
+                repo_root = os.path.join(extract_dir, contents[0])
+                logger.info(f"Found repository root directory: {contents[0]}")
+                return repo_root
+            else:
+                # If there are multiple items, use the extract_dir as the root
+                logger.info("Using extracted directory as repository root")
+                return extract_dir
+    except Exception as e:
+        logger.error(f"Error downloading repository: {str(e)}", exc_info=True)
+        return None
+
+def read_and_concatenate_files(repo_dir: str, selected_files: list) -> str:
+    """
+    Read and concatenate content of selected files from the repository.
+    
+    Args:
+        repo_dir: Path to the repository directory
+        selected_files: List of file paths to read
+        
+    Returns:
+        String with all files concatenated with headers
+    """
+    concatenated = ""
+    
+    try:
+        for file_path in selected_files:
+            full_path = os.path.join(repo_dir, file_path)
+            print(f"Reading file: {full_path}")
+            if os.path.isfile(full_path):
+                try:
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                        concatenated += f"// {file_path}\n{file_content}\n\n"
+                except UnicodeDecodeError:
+                    # Try with different encoding if utf-8 fails
+                    with open(full_path, 'r', encoding='latin-1') as f:
+                        file_content = f.read()
+                        concatenated += f"// {file_path}\n{file_content}\n\n"
+            else:
+                logger.warning(f"Selected file not found: {file_path}")
+        
+        return concatenated
+    except Exception as e:
+        logger.error(f"Error reading and concatenating files: {str(e)}", exc_info=True)
+        return ""
+
 async def process_notification(notification: Notification, config: Settings):
     """
     Process a notification by fetching files, auditing them, and sending results.
     
     Args:
-        payload: Notification payload
+        notification: Notification payload
         config: Application configuration
     """
     try:
+        logger.info(f"Processing notification for task {notification.task_id}")
         
-        # Fetch Solidity files
-        solidity_content = await fetch_solidity_files(
-            notification.get_contracts_url,
-            config
-        )
+        # Fetch task details to get selected files
+        task_details = await fetch_task_details(notification.task_details_url, config)
+        if not task_details or 'selectedFiles' not in task_details:
+            logger.error(f"Failed to get selected files for task {notification.task_id}")
+            return
+
+        selected_files = task_details['selectedFiles']
+        if not selected_files:
+            logger.warning(f"No files selected for task {notification.task_id}")
+            return
+            
+        # Download and extract repository
+        repo_dir = await download_repository(notification.task_repository_url, config)
+        if not repo_dir:
+            logger.error(f"Failed to download repository for task {notification.task_id}")
+            return
         
-        if not solidity_content:
-            logger.warning(f"No Solidity files fetched for task {notification.task_id}")
+        # Store repository path for future use
+        repo_storage_path = os.path.join(config.data_dir, f"repo_{notification.task_id}")
+        if not os.path.exists(config.data_dir):
+            os.makedirs(config.data_dir, exist_ok=True)
+            
+        # If the repository already exists for this task, remove it and update
+        if os.path.exists(repo_storage_path):
+            import shutil
+            shutil.rmtree(repo_storage_path)
+
+        # Copy the extracted repository to a persistent location
+        import shutil
+        shutil.copytree(repo_dir, repo_storage_path)
+        logger.info(f"Repository for task {notification.task_id} stored at {repo_storage_path}")
+        
+        # Read and concatenate selected files
+        concatenated_content = read_and_concatenate_files(repo_storage_path, selected_files)
+        if not concatenated_content:
+            logger.warning(f"No valid file content found for task {notification.task_id}")
             return
         
         # Audit files
         auditor = SolidityAuditor(config.openai_api_key, config.openai_model)
-        audit = auditor.audit_files(solidity_content)
+        audit = auditor.audit_files(concatenated_content)
         
         # Send results back
         await send_audit_results(notification.post_findings_url, notification.task_id, audit)
         
+        # Clean up only the temporary directory, but keep the repository copy
+        if os.path.exists(os.path.dirname(repo_dir)):
+            shutil.rmtree(os.path.dirname(repo_dir))
+            logger.info(f"Temporary directory cleaned up while preserving repository at {repo_storage_path}")
+        
     except Exception as e:
-        logger.error(f"Error processing notification: {str(e)}")
+        logger.error(f"Error processing notification: {str(e)}", exc_info=True)
 
-@app.post("/webhook")# , dependencies=[Depends(verify_webhook_secret)])
-async def webhook(notification: Notification, background_tasks: BackgroundTasks):
+@app.post("/webhook")
+async def webhook(
+    notification: Notification, 
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None)
+):
     """
     Webhook endpoint for receiving notifications.
     
     Args:
-        payload: Notification payload
+        notification: Notification payload
         background_tasks: FastAPI background tasks
+        authorization: Authorization header for webhook validation
         
     Returns:
         Acknowledgement response
     """
+    # Validate authorization token
+    expected_auth = f"token {app.state.config.webhook_auth_token}"
+    if not authorization or authorization != expected_auth:
+        logger.warning(f"Invalid authorization token provided")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
     logger.info(f"Received notification for task {notification.task_id}")
     
     # Process the notification in the background

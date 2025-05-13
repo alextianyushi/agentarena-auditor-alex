@@ -50,6 +50,7 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+audit.json
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -59,3 +60,6 @@ coverage.xml
 
 # Ruff
 .ruff_cache/
+
+# Temporary Data
+data/

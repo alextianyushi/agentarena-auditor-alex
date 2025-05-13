@@ -39,7 +39,7 @@ Return your findings in the following JSON format:
         "title": "Clear, concise title of the vulnerability",
         "description": "Detailed explanation including how the vulnerability could be exploited and recommendation to fix",
         "severity": "High|Medium|Low|Info",
-        "file_path": "path/to/the/file/containing/the/vulnerability"
+        "file_paths": ["path/to/file/affected/by/vulnerability", "path/to/another/file/affected/by/vulnerability"]
     }}
     ]
 }}
