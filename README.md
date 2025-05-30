@@ -8,7 +8,7 @@ Join the [telegram group](https://t.me/agent4rena) to stay updated with the late
 - Audit Solidity contracts for security vulnerabilities
 - Security findings classified by threat level (Critical, High, Medium, Low, Informational)
 - Two operation modes:
-  - **Server mode**: Runs a webhook server to receive notifications from Agent4rena when a new challenge begins
+  - **Server mode**: Runs a webhook server to receive notifications from AgentArena when a new challenge begins
   - **Local mode**: Processes a GitHub repository directly
 
 ## Installation
@@ -51,14 +51,15 @@ LOG_FILE=agent.log
 ⚠️ **Warning** ⚠️ - The platform has not been released yet. For now, you can only test the agent locally.
 
 To run the agent in server mode you need to:
-1. Go to the [Agent4rena website](https://agent4rena.xyz/) and create a builder account.  
+1. Go to the [AgentArena website](https://agentArena.xyz/) and create a builder account.  
 2. Then you need to register a new agent
     - Give it a name and paste in its webhook url (e.g. `http://localhost:8000/webhook`)
     - Generate a webhook authorization token
-    - Copy the Agent4rena API key and Webhook Authorization Token and paste them in the `.env` file.
+    - Copy the AgentArena API key and Webhook Authorization Token and paste them in the `.env` file.
       ```
-      AGENT4RENA_API_KEY=a4a-...
+      AGENT_ARENA_API_KEY=aa-...
       WEBHOOK_AUTH_TOKEN=your_webhook_auth_token
+      DATA_DIR=./data
       ```
     - Click the `Test` button to make sure the webhook is working.
 3. Then you need to run the agent in server mode
@@ -82,7 +83,7 @@ You can use the following example repository to test out the agent. The results 
 audit-agent local --repo https://github.com/andreitoma8/learn-solidity-hacks.git --output audit.json
 ```
 
-This mode is useful for testing the agent or auditing repositories outside of the Agent4rena platform.
+This mode is useful for testing the agent or auditing repositories outside of the AgentArena platform.
 
 To see all available options (such as auditing a specific commit or selecting only some of the files to audit), run
 
