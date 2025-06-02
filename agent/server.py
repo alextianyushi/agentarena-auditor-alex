@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Solidity Audit Agent")
 
 class Notification(BaseModel):
-    """Payload received from Agent4rena webhook."""
+    """Payload received from AgentArena webhook."""
     task_id: str
     task_repository_url: str  # URL to download repository ZIP
     task_details_url: str     # URL to get task details with selected files
