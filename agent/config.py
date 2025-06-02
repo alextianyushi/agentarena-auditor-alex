@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     log_file: str = Field("agent.log", env="LOG_FILE")
     
     # Additional fields for server mode
-    agent4rena_api_key: Optional[str] = Field(None, env="AGENT4RENA_API_KEY")
+    agentarena_api_key: Optional[str] = Field(None, env="AGENTARENA_API_KEY")
     webhook_auth_token: Optional[str] = Field(None, env="WEBHOOK_AUTH_TOKEN")
     data_dir: Optional[str] = Field("./data", env="DATA_DIR")
     

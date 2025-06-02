@@ -35,9 +35,9 @@ def main():
             print("Please set the WEBHOOK_AUTH_TOKEN environment variable or add it to your .env file")
             sys.exit(1)
         
-        if not config.agent4rena_api_key:
-            print("Error: AGENT4RENA_API_KEY is required for server mode")
-            print("Please set the AGENT4RENA_API_KEY environment variable or add it to your .env file")
+        if not config.agentarena_api_key:
+            print("Error: AGENTARENA_API_KEY is required for server mode")
+            print("Please set the AGENTARENA_API_KEY environment variable or add it to your .env file")
             sys.exit(1)
             
         start_server(host=args.host, port=args.port, config=config)
