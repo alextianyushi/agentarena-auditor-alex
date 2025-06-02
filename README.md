@@ -57,7 +57,7 @@ To run the agent in server mode you need to:
     - Generate a webhook authorization token
     - Copy the AgentArena API key and Webhook Authorization Token and paste them in the `.env` file.
       ```
-      AGENT_ARENA_API_KEY=aa-...
+      AGENTARENA_API_KEY=aa-...
       WEBHOOK_AUTH_TOKEN=your_webhook_auth_token
       DATA_DIR=./data
       ```
