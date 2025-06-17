@@ -15,8 +15,8 @@ Join the [telegram group](https://t.me/agent4rena) to stay updated with the late
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/solidity-audit-agent.git
-cd solidity-audit-agent
+git clone https://github.com/NethermindEth/agentarena-agent-template.git
+cd agentarena-agent-template
 
 # Create a virtual environment
 python -m venv venv
@@ -51,7 +51,7 @@ LOG_FILE=agent.log
 ⚠️ **Warning** ⚠️ - The platform has not been released yet. For now, you can only test the agent locally.
 
 To run the agent in server mode you need to:
-1. Go to the [AgentArena website](https://agentArena.xyz/) and create a builder account.  
+1. Go to the [AgentArena website](https://app.agentarena.staging-nethermind.xyz/) and create a builder account.  
 2. Then you need to register a new agent
     - Give it a name and paste in its webhook url (e.g. `http://localhost:8000/webhook`)
     - Generate a webhook authorization token
