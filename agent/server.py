@@ -3,6 +3,7 @@ Server implementation for the AI agent.
 """
 import json
 import logging
+from typing import Optional
 import httpx
 import tempfile
 import os
@@ -12,7 +13,7 @@ from pydantic import BaseModel
 from agent.types import TaskResponse
 from agent.services.auditor import Audit, SolidityAuditor
 from agent.config import Settings
-from typing import Optional
+import shutil
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="Solidity Audit Agent")
@@ -128,18 +129,22 @@ async def fetch_task_details(details_url: str, config: Settings) -> TaskResponse
         logger.error(f"Error fetching task details: {str(e)}", exc_info=True)
         return None
 
-async def download_repository(repo_url: str, config: Settings) -> str:
+async def setup_repository(repo_url: str, task_id: str, config: Settings) -> Optional[str]:
     """
-    Download repository ZIP file and extract to a temporary directory.
+    Download repository ZIP file, extract to temporary directory, and copy to location.
     
     Args:
         repo_url: URL to download repository ZIP
+        task_id: Task ID for naming the repository directory
         config: Application configuration
         
     Returns:
-        Path to the extracted repository directory
+        Path to the setup repository directory, or None if failed
     """
+    temp_dir = None
     try:
+        logger.info(f"Downloading task repository from {repo_url} for task {task_id}")
+
         # Create a temporary directory
         temp_dir = tempfile.mkdtemp()
         zip_path = os.path.join(temp_dir, "repo.zip")
@@ -168,16 +173,39 @@ async def download_repository(repo_url: str, config: Settings) -> str:
             contents = os.listdir(extract_dir)
             if len(contents) == 1 and os.path.isdir(os.path.join(extract_dir, contents[0])):
                 # If there's only one item and it's a directory, that's our repo root
-                repo_root = os.path.join(extract_dir, contents[0])
+                temp_repo_root = os.path.join(extract_dir, contents[0])
                 logger.info(f"Found repository root directory: {contents[0]}")
-                return repo_root
             else:
                 # If there are multiple items, use the extract_dir as the root
+                temp_repo_root = extract_dir
                 logger.info("Using extracted directory as repository root")
-                return extract_dir
+            
+            # Setup repository location
+            repo_dir = os.path.join(config.data_dir, f"repo_{task_id}")
+            if not os.path.exists(config.data_dir):
+                os.makedirs(config.data_dir, exist_ok=True)
+            
+            # If the repository already exists, remove it
+            if os.path.exists(repo_dir):
+                shutil.rmtree(repo_dir)
+            
+            # Copy the extracted repository
+            shutil.copytree(temp_repo_root, repo_dir)
+            logger.info(f"Repository for task {task_id} stored at {repo_dir}")
+            
+            return repo_dir
+            
     except Exception as e:
         logger.error(f"Error downloading repository: {str(e)}", exc_info=True)
         return None
+    finally:
+        # Clean up temporary directory
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+                logger.info(f"Temporary directory {temp_dir} cleaned up")
+            except Exception as cleanup_error:
+                logger.error(f"Error cleaning up temporary directory {temp_dir}: {str(cleanup_error)}")
 
 def read_and_concatenate_files(repo_dir: str, selected_files: list) -> str:
     """
@@ -226,50 +254,37 @@ async def process_notification(notification: Notification, config: Settings):
         logger.info(f"Processing notification for task {notification.task_id}")
         logger.info(f"Notification: {notification}")
         
-        # Fetch task details to get selected files
+        # Fetch task details (scope and documentation)
         task_details = await fetch_task_details(notification.task_details_url, config)
         if not task_details:
             logger.error(f"Failed to get task details for task {notification.task_id}")
             return
 
-        selected_files = task_details.selectedFiles or []
-        if not selected_files:
-            logger.warning(f"No files selected for task {notification.task_id}")
+        if not task_details.selectedFiles:
+            logger.error(f"No files selected for task {notification.task_id}")
             return
-            
-        # Download and extract repository
-        repo_dir = await download_repository(notification.task_repository_url, config)
+        
+        # Download, extract, and store repository
+        repo_dir = await setup_repository(
+            notification.task_repository_url, 
+            notification.task_id,
+            config
+        )
         if not repo_dir:
             logger.error(f"Failed to download repository for task {notification.task_id}")
             return
         
-        # Store repository path for future use
-        repo_storage_path = os.path.join(config.data_dir, f"repo_{notification.task_id}")
-        if not os.path.exists(config.data_dir):
-            os.makedirs(config.data_dir, exist_ok=True)
-            
-        # If the repository already exists for this task, remove it and update
-        if os.path.exists(repo_storage_path):
-            import shutil
-            shutil.rmtree(repo_storage_path)
-
-        # Copy the extracted repository to a persistent location
-        import shutil
-        shutil.copytree(repo_dir, repo_storage_path)
-        logger.info(f"Repository for task {notification.task_id} stored at {repo_storage_path}")
-        
         # Read and concatenate selected files
-        concatenated_contracts = read_and_concatenate_files(repo_storage_path, selected_files)
+        concatenated_contracts = read_and_concatenate_files(repo_dir, task_details.selectedFiles)
         if not concatenated_contracts:
             logger.warning(f"No valid contracts content found for task {notification.task_id}")
             return
         
         # Read and concatenate selected docs
-        selected_docs = task_details.selectedDocs or []
-        concatenated_docs = read_and_concatenate_files(repo_storage_path, selected_docs)
+        concatenated_docs = read_and_concatenate_files(repo_dir, task_details.selectedDocs)
         if not concatenated_docs:
             logger.info(f"No valid docs content found for task {notification.task_id}")
-            # Continue anyway as docs are
+            # Continue anyway as docs are optional
         
         # Audit files
         auditor = SolidityAuditor(config.openai_api_key, config.openai_model)
@@ -278,13 +293,16 @@ async def process_notification(notification: Notification, config: Settings):
         # Send results back
         await send_audit_results(notification.post_findings_url, notification.task_id, audit)
         
-        # Clean up only the temporary directory, but keep the repository copy
-        if os.path.exists(os.path.dirname(repo_dir)):
-            shutil.rmtree(os.path.dirname(repo_dir))
-            logger.info(f"Temporary directory cleaned up while preserving repository at {repo_storage_path}")
-        
     except Exception as e:
         logger.error(f"Error processing notification: {str(e)}", exc_info=True)
+    finally:
+        # Clean up the repository directory
+        if os.path.exists(repo_dir):
+            try:
+                shutil.rmtree(repo_dir)
+                logger.info(f"Repository directory {repo_dir} cleaned up")
+            except Exception as cleanup_error:
+                logger.error(f"Error cleaning up repository directory {repo_dir}: {str(cleanup_error)}")
 
 @app.post("/webhook")
 async def webhook(
