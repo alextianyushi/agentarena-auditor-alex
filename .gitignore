@@ -63,3 +63,11 @@ audit.json
 
 # Temporary Data
 data/
+
+# Docker
+data/
+logs/
+.env
+
+# Docker Compose Override
+docker-compose.override.yml

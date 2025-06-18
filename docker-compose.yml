@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      args:
+        WEBHOOK_AUTH_TOKEN: ${WEBHOOK_AUTH_TOKEN}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        AGENTARENA_API_KEY: ${AGENTARENA_API_KEY}
+        OPENAI_MODEL: ${OPENAI_MODEL:-o3-mini}
+        LOG_LEVEL: ${LOG_LEVEL:-INFO}
+        LOG_FILE: ${LOG_FILE:-agent.log}
+        DATA_DIR: ${DATA_DIR:-/app/data}
+        PORT: ${PORT:-8000}
+    env_file:
+      - .env
+    environment:
+      - DATA_DIR=/app/data
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped 
